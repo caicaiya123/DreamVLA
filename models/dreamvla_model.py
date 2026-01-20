@@ -474,8 +474,11 @@ class DreamVLA(nn.Module):
 
         # freeze vision encoder
         if not self.use_dinosiglip:
-            vit_checkpoint = torch.load(self.vit_checkpoint_path, map_location='cpu')
-            msg = self.vision_encoder.load_state_dict(vit_checkpoint['model'], strict=False)
+            # For evaluation, some users may not provide a separate ViT MAE checkpoint because
+            # the main policy checkpoint already contains the vision encoder weights.
+            if self.vit_checkpoint_path is not None and str(self.vit_checkpoint_path) != "":
+                vit_checkpoint = torch.load(self.vit_checkpoint_path, map_location='cpu')
+                msg = self.vision_encoder.load_state_dict(vit_checkpoint.get('model', vit_checkpoint), strict=False)
         else:
             import timm
             from timm.models.vision_transformer import VisionTransformer

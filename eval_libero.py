@@ -105,7 +105,21 @@ def main():
         if args.rank == 0:
             print(f"Loading checkpoint from {args.resume_from_checkpoint}")
         checkpoint = torch.load(args.resume_from_checkpoint, map_location="cpu")
-        ddp_model.load_state_dict(checkpoint["model_state_dict"], False)
+        if "model_state_dict" not in checkpoint:
+            raise KeyError(
+                f"Checkpoint at {args.resume_from_checkpoint} does not contain 'model_state_dict'. "
+                f"Found keys: {list(checkpoint.keys())[:50]}"
+            )
+        incompatible = ddp_model.load_state_dict(checkpoint["model_state_dict"], strict=False)
+        # Avoid silent partial-loads (a common source of all-zero success).
+        if args.rank == 0:
+            missing = getattr(incompatible, "missing_keys", [])
+            unexpected = getattr(incompatible, "unexpected_keys", [])
+            print(f"[ckpt load] missing_keys={len(missing)} unexpected_keys={len(unexpected)}")
+            if len(missing) > 0:
+                print("[ckpt load] first missing_keys:", missing[:30])
+            if len(unexpected) > 0:
+                print("[ckpt load] first unexpected_keys:", unexpected[:30])
 
     ddp_model.eval()
     
